@@ -24,9 +24,12 @@
 
 ### rebot设置
 
-1.将1号关节电机设置位置P为20
-2.全部关节电机设置控制模式为位置速度
-3.夹爪
+
+1.全部关节电机设置控制模式为位置速度
+2.夹爪电机设置为MIT，或者直接改code
+3.MotorControl1.controlMIT(Motor7, 5, 1,joint_states["gripper"],1,0)
+
+
 
 
 
@@ -40,15 +43,11 @@ Python SDK
 sudo apt update
 pip install pyserial fashionstar-uart-sdk scipy numpy 
 
-# 2. 配置CAN接口
-cd piper-mate
-bash find_all_can_port.sh
-bash can_activate.sh can0 1000000
 
-# 3. 运行程序
+# 2. 运行程序
 sudo chmod 777 /dev/ttyUSB*
 sudo chmod 777 /dev/ttyA*
-python3 ./Python_SDK/piper_pipermate.py
+python3 ./Python_SDK/rebot_pipermate.py
 ```
 
 
@@ -62,17 +61,8 @@ PiPER-Mate/
 │   ├── rebot_pipermate.py       # 主控制程序
 │   └── README.md                # 详细使用文档
 └── README.md                    # 本文档
+
 ```
-
----
-
-
-
----
-
-## 🔧 硬件连接
-
----
 
 ## 📊 关节映射
 
@@ -144,12 +134,3 @@ sudo apt remove brltty
 
 本项目基于 [MIT License](LICENSE) 开源。
 
----
-
-## 🔗 相关链接
-
-- [PiPER Mate 官方仓库](https://github.com/servodevelop/piper-mate/tree/main)
-- [Piper ROS2 官方仓库](https://github.com/agilexrobotics/piper_ros/tree/humble/)
-- [Lerobot 框架](https://github.com/huggingface/lerobot)
-
----
