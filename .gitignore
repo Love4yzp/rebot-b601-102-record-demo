@@ -1,1 +1,7 @@
 rebot/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

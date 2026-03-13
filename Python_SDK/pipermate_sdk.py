@@ -9,7 +9,6 @@ import time
 import serial
 import argparse
 from typing import List, Optional
-from DM_CAN import *
 
 # 导入PiPER_Mate SDK
 from fashionstar_uart_sdk.uart_pocket_handler import (
@@ -17,39 +16,35 @@ from fashionstar_uart_sdk.uart_pocket_handler import (
     SyncPositionControlOptions,
 )
 
+# rebot手臂关节角度限制(角度)
+JOINT_ANGLE_LIMITS = {
+    'joint1': [-150.0, 150.0],      # 角度限制
+    'joint2': [-180.0,0.0],         
+    'joint3': [-170.0, 0.0],        
+    'joint4': [-90.0,0.0],      #<--- 这个关节的0.0限位改大即可低头
+    'joint5': [-70.0, 70.0],        
+    'joint6': [-120.0, 120.0],   
+    'gripper':[-320, 0],
+}
+
+# 夹爪放缩比，rebot的夹爪会等比放大对应行程 须 >0 
+GRIPPER_RATIO = 6
 
 
 
 class PiPER_MateAgilex:
     """
-    PiPER Mate与Piper机械臂集成控制类
+    PiPER Mate与reBot机械臂集成控制类
     """
     
-    # Piper手臂关节角度限制（角度和弧度）
-    JOINT_ANGLE_LIMITS = {
-        'joint1': [-150.0, 150.0],      # 角度限制
-        'joint2': [-180.0,0.0],         
-        'joint3': [-170.0, 0.0],        
-        'joint4': [-100.0,0.0],      
-        'joint5': [-70.0, 70.0],        
-        'joint6': [-120.0, 120.0],      
-    }
-    
-    # JOINT_RADIAN_LIMITS = {
-    #     'joint1': [-2.6179, 2.6179],    # 弧度限制
-    #     'joint2': [0, 3.14],            
-    #     'joint3': [-2.967, 0],          
-    #     'joint4': [-1.745, 1.745],      
-    #     'joint5': [-1.22, 1.22],        
-    #     'joint6': [-2.09439, 2.09439],  
-    # }
+
     
     def __init__(self, 
                  fashionstar_port: str = "/dev/ttyUSB0", 
                  piper_can_name: str = "can0",
                  gripper_exist: bool = True):
         """
-        初始化PiPER Mate和Piper机械臂
+        初始化PiPER Mate和rebot机械臂
         
         Args:
             fashionstar_port: PiPER Mate机械臂USB端口
@@ -86,27 +81,21 @@ class PiPER_MateAgilex:
         # 初始化Piper机械臂
 
         
-        # 连接Piper机械臂
-        try:
-            print("Piper机械臂连接成功")
-        except Exception as e:
-            print(f"Piper机械臂连接失败: {e}")
-            raise
+        # # 连接Piper机械臂
+        # try:
+        #     print("Piper机械臂连接成功")
+        # except Exception as e:
+        #     print(f"Piper机械臂连接失败: {e}")
+        #     raise
         
-        # 设置Piper机械臂控制模式为关节控制模式
-        try:
-            # 设置控制模式：关节控制模式，速度控制模式
-            self.piper_interface.ModeCtrl(
-                ctrl_mode=0x01,      # 关节控制模式
-                move_mode=0x01,      # 速度控制模式
-                move_spd_rate_ctrl=100,  # 速度控制比例
-                is_mit_mode=0xAD      # MIT模式
-            )
-            print("Piper机械臂控制模式设置成功")
-        except Exception as e:
-            print(f"Piper机械臂控制模式设置失败: {e}")
+        # # 设置Piper机械臂控制模式为关节控制模式
+        # try:
+        #     #此处初始化机械臂
+        #     print("Piper机械臂控制模式设置成功")
+        # except Exception as e:
+        #     print(f"Piper机械臂控制模式设置失败: {e}")
 
-        print("PiPER_Mate与Piper机械臂集成控制初始化完成")
+        # print("PiPER_Mate与Piper机械臂集成控制初始化完成")
     
     def degrees_to_radians(self, degrees: float) -> float:
         """将角度转换为弧度"""
@@ -131,21 +120,33 @@ class PiPER_MateAgilex:
         Returns:
             转换后的关节位置（弧度或米）
         """
-        if servo_id in range(7):  # 手臂关节
+        if servo_id in range(6):  # 手臂关节
             # 先对第1、4、6关节方向取反
             if servo_id in [0,1,5]:  # joint1, joint4, joint6
                 servo_angle = -servo_angle
             
             # 根据关节名称获取角度限制
             joint_name = f'joint{servo_id + 1}'
-            angle_limits = self.JOINT_ANGLE_LIMITS.get(joint_name, [-180.0, 180.0])
+            angle_limits = JOINT_ANGLE_LIMITS.get(joint_name, [-180.0, 180.0])
             
             # 对取反后的角度进行限制
             limited_angle = max(angle_limits[0], min(servo_angle, angle_limits[1]))
             
             # 转换为弧度
             return self.degrees_to_radians(limited_angle)
-
+        elif servo_id == 6:
+            #对角度取反
+            servo_angle = -servo_angle*GRIPPER_RATIO
+            
+            # 根据关节名称获取角度限制
+            joint_name = f'gripper'
+            angle_limits = JOINT_ANGLE_LIMITS.get(joint_name, [-180.0, 180.0])
+            
+            # 对取反后的角度进行限制
+            limited_angle = max(angle_limits[0], min(servo_angle, angle_limits[1]))
+            
+            # 转换为弧度
+            return self.degrees_to_radians(limited_angle)
         else:
             return 0.0
     
@@ -264,12 +265,12 @@ class PiPER_MateAgilex:
         # 禁用PiPER_Mate力矩
         self.disable_torque()
         
-        # 关闭Piper连接
-        try:
-            self.piper_interface.DisconnectPort()
-            print("Piper机械臂连接已关闭")
-        except Exception as e:
-            print(f"关闭Piper连接失败: {e}")
+        # # 关闭Piper连接
+        # try:
+        #     self.piper_interface.DisconnectPort()
+        #     print("Piper机械臂连接已关闭")
+        # except Exception as e:
+        #     print(f"关闭Piper连接失败: {e}")
         
         # 关闭PiPER_Mate连接
         try:
@@ -281,142 +282,143 @@ class PiPER_MateAgilex:
         print("所有连接已关闭")
 
 
-def main():
-    """主函数 - 预设参数，持续遥操作"""
+# def main():
+#     """主函数 - 预设参数，持续遥操作"""
     
-    # 预设参数 - 根据实际情况修改这些值
-    PIPERMATE_PORT = "/dev/ttyUSB0"    # PiPER_Mate USB端口
-    PIPER_CAN_NAME = "can0"              # Piper CAN端口
-    GRIPPER_EXIST = True                 # 是否包含夹爪
-    UPDATE_RATE = 100.0                  # 控制频率（Hz）- 可调节
+#     # 预设参数 - 根据实际情况修改这些值
+#     PIPERMATE_PORT = "/dev/ttyUSB0"    # PiPER_Mate USB端口
+#     PIPER_CAN_NAME = "can0"              # Piper CAN端口
+#     GRIPPER_EXIST = True                 # 是否包含夹爪
+#     UPDATE_RATE = 100.0                  # 控制频率（Hz）- 可调节
 
-    Motor1=Motor(DM_Motor_Type.DM4310,0x01,0x11)
-    Motor2=Motor(DM_Motor_Type.DM4340,0x02,0x12)
-    Motor3=Motor(DM_Motor_Type.DM4340,0x03,0x13)
-    Motor4=Motor(DM_Motor_Type.DM4310,0x04,0x14)
-    Motor5=Motor(DM_Motor_Type.DM4310,0x05,0x15)
-    Motor6=Motor(DM_Motor_Type.DM4310,0x06,0x16)
-    # Motor7=Motor(DM_Motor_Type.DM4310,0x07,0x17)
-    serial_device = serial.Serial('/dev/ttyACM0', 921600, timeout=0.5)
-    MotorControl1=MotorControl(serial_device)
-    MotorControl1.addMotor(Motor1)
-    MotorControl1.addMotor(Motor2)
-    MotorControl1.addMotor(Motor3)
-    MotorControl1.addMotor(Motor4)
-    MotorControl1.addMotor(Motor5)
-    MotorControl1.addMotor(Motor6)
-    # MotorControl1.addMotor(Motor7)
+#     Motor1=Motor(DM_Motor_Type.DM4310,0x01,0x11)
+#     Motor2=Motor(DM_Motor_Type.DM4340,0x02,0x12)
+#     Motor3=Motor(DM_Motor_Type.DM4340,0x03,0x13)
+#     Motor4=Motor(DM_Motor_Type.DM4310,0x04,0x14)
+#     Motor5=Motor(DM_Motor_Type.DM4310,0x05,0x15)
+#     Motor6=Motor(DM_Motor_Type.DM4310,0x06,0x16)
+#     # Motor7=Motor(DM_Motor_Type.DM4310,0x07,0x17)
+#     serial_device = serial.Serial('/dev/ttyACM0', 921600, timeout=0.5)
+#     MotorControl1=MotorControl(serial_device)
+#     MotorControl1.addMotor(Motor1)
+#     MotorControl1.addMotor(Motor2)
+#     MotorControl1.addMotor(Motor3)
+#     MotorControl1.addMotor(Motor4)
+#     MotorControl1.addMotor(Motor5)
+#     MotorControl1.addMotor(Motor6)
+#     # MotorControl1.addMotor(Motor7)
 
-    if MotorControl1.switchControlMode(Motor1,Control_Type.POS_VEL):
-        print("switch POS_VEL success")
-    if MotorControl1.switchControlMode(Motor2,Control_Type.POS_VEL):
-        print("switch POS_VEL success")
-    if MotorControl1.switchControlMode(Motor3,Control_Type.POS_VEL):
-        print("switch POS_VEL success")
-    if MotorControl1.switchControlMode(Motor4,Control_Type.POS_VEL):
-        print("switch POS_VEL success")
-    if MotorControl1.switchControlMode(Motor5,Control_Type.POS_VEL):
-        print("switch POS_VEL success")
-    if MotorControl1.switchControlMode(Motor6,Control_Type.POS_VEL):
-        print("switch POS_VEL success")
-    # if MotorControl1.switchControlMode(Motor7,Control_Type.POS_VEL):
-    #     print("switch POS_VEL success")
-
-
+#     if MotorControl1.switchControlMode(Motor1,Control_Type.POS_VEL):
+#         print("switch POS_VEL success")
+#     if MotorControl1.switchControlMode(Motor2,Control_Type.POS_VEL):
+#         print("switch POS_VEL success")
+#     if MotorControl1.switchControlMode(Motor3,Control_Type.POS_VEL):
+#         print("switch POS_VEL success")
+#     if MotorControl1.switchControlMode(Motor4,Control_Type.POS_VEL):
+#         print("switch POS_VEL success")
+#     if MotorControl1.switchControlMode(Motor5,Control_Type.POS_VEL):
+#         print("switch POS_VEL success")
+#     if MotorControl1.switchControlMode(Motor6,Control_Type.POS_VEL):
+#         print("switch POS_VEL success")
+#     # if MotorControl1.switchControlMode(Motor7,Control_Type.POS_VEL):
+#     #     print("switch POS_VEL success")
 
 
 
-    MotorControl1.save_motor_param(Motor1)
-    MotorControl1.save_motor_param(Motor2)
-    MotorControl1.save_motor_param(Motor3)
-    MotorControl1.save_motor_param(Motor4)
-    MotorControl1.save_motor_param(Motor5)
-    MotorControl1.save_motor_param(Motor6)
-    # MotorControl1.save_motor_param(Motor7)
-    MotorControl1.enable(Motor1)
-    MotorControl1.enable(Motor2)
-    MotorControl1.enable(Motor3)
-    MotorControl1.enable(Motor4)
-    MotorControl1.enable(Motor5)
-    MotorControl1.enable(Motor6)
-    # MotorControl1.enable(Motor7)
 
-    robot_controller = None
-    try:
-        # 创建机械臂控制器
-        robot_controller = PiPER_MateAgilex(
-            fashionstar_port=PIPERMATE_PORT,
-            piper_can_name=PIPER_CAN_NAME,
-            gripper_exist=GRIPPER_EXIST
-        )
-        # 开始持续遥操作
-        print(f"\n开始PiPER_Mate控制Piper,控制频率{UPDATE_RATE}Hz...")
-        print("按 Ctrl+C 停止遥操作")
-        print("=" * 120)
+
+#     MotorControl1.save_motor_param(Motor1)
+#     MotorControl1.save_motor_param(Motor2)
+#     MotorControl1.save_motor_param(Motor3)
+#     MotorControl1.save_motor_param(Motor4)
+#     MotorControl1.save_motor_param(Motor5)
+#     MotorControl1.save_motor_param(Motor6)
+#     # MotorControl1.save_motor_param(Motor7)
+#     MotorControl1.enable(Motor1)
+#     MotorControl1.enable(Motor2)
+#     MotorControl1.enable(Motor3)
+#     MotorControl1.enable(Motor4)
+#     MotorControl1.enable(Motor5)
+#     MotorControl1.enable(Motor6)
+#     # MotorControl1.enable(Motor7)
+
+#     robot_controller = None
+#     try:
+#         # 创建机械臂控制器
+#         robot_controller = PiPER_MateAgilex(
+#             fashionstar_port=PIPERMATE_PORT,
+#             piper_can_name=PIPER_CAN_NAME,
+#             gripper_exist=GRIPPER_EXIST
+#         )
+#         # 开始持续遥操作
+#         print(f"\n开始PiPER_Mate控制Piper,控制频率{UPDATE_RATE}Hz...")
+#         print("按 Ctrl+C 停止遥操作")
+#         print("=" * 120)
         
-        # 持续遥操作循环
-        update_interval = 1.0 / UPDATE_RATE
-        frame_count = 0
+#         # 持续遥操作循环
+#         update_interval = 1.0 / UPDATE_RATE
+#         frame_count = 0
         
-        while True:
-            try:
-                # 读取PiPER_Mate关节状态
-                joint_states = robot_controller.get_fashionstar_joint_states()
+#         while True:
+#             try:
+#                 # 读取PiPER_Mate关节状态
+#                 joint_states = robot_controller.get_fashionstar_joint_states()
                 
-                if joint_states:
-                    # 控制Piper机械臂
+#                 if joint_states:
+#                     # 控制Piper机械臂
                     
-                    # MotorControl1.control_Pos_Vel(Motor1,joint_states["joint1"],10)
-                    MotorControl1.control_Pos_Vel(Motor2,joint_states["joint2"],10)
-                    MotorControl1.control_Pos_Vel(Motor3,joint_states["joint3"],10)
-                    MotorControl1.control_Pos_Vel(Motor4,joint_states["joint4"],10)
-                    MotorControl1.control_Pos_Vel(Motor5,joint_states["joint5"],10)
-                    MotorControl1.control_Pos_Vel(Motor6,joint_states["joint6"],10)
-                    # MotorControl1.control_Pos_Vel(Motor7,joint_states["gripper"],30)
+#                     # MotorControl1.control_Pos_Vel(Motor1,joint_states["joint1"],10)
+#                     MotorControl1.control_Pos_Vel(Motor2,joint_states["joint2"],10)
+#                     MotorControl1.control_Pos_Vel(Motor3,joint_states["joint3"],10)
+#                     MotorControl1.control_Pos_Vel(Motor4,joint_states["joint4"],10)
+#                     MotorControl1.control_Pos_Vel(Motor5,joint_states["joint5"],10)
+#                     MotorControl1.control_Pos_Vel(Motor6,joint_states["joint6"],10)
+#                     # MotorControl1.control_Pos_Vel(Motor7,joint_states["gripper"],30)
 
-                    # 实时显示关节状态（每10帧显示一次，避免刷屏）
-                    frame_count += 1
-                    if frame_count % 10 == 0:
-                        print("\rpiper当前关节状态:", end="")
-                        for joint, state in joint_states.items():
-                            print(f" {joint}:{state:.4f}", end="")
-                        print("   ", end="", flush=True)
+#                     # 实时显示关节状态（每10帧显示一次，避免刷屏）
+#                     frame_count += 1
+#                     if frame_count % 10 == 0:
+#                         print("\rpiper当前关节状态:", end="")
+#                         for joint, state in joint_states.items():
+#                             print(f" {joint}:{state:.4f}", end="")
+#                         print("   ", end="", flush=True)
                 
-                # 等待下一个更新周期
-                time.sleep(update_interval)
+#                 # 等待下一个更新周期
+#                 time.sleep(update_interval)
                 
-            except KeyboardInterrupt:
-                print("\n\n用户手动停止遥操作")
-                break
-            # 核心：捕获USB断开异常，立即终止程序
-            except serial.SerialException as e:
-                print(f"\n\n❌ 致命错误：PiPER_Mate USB连接断开！{e}")
-                break
-            # 捕获机械臂复位错误，立即终止程序
-            except OSError as e:
-                print(f"\n\n❌ 致命错误：{e}")
-                break
-            except Exception as e:
-                print(f"\n遥操作过程中出错: {e}")
-                import traceback
-                traceback.print_exc()
-                time.sleep(1.0)  # 非致命错误，等待1秒继续
+#             except KeyboardInterrupt:
+#                 print("\n\n用户手动停止遥操作")
+#                 break
+#             # 核心：捕获USB断开异常，立即终止程序
+#             except serial.SerialException as e:
+#                 print(f"\n\n❌ 致命错误：PiPER_Mate USB连接断开！{e}")
+#                 break
+#             # 捕获机械臂复位错误，立即终止程序
+#             except OSError as e:
+#                 print(f"\n\n❌ 致命错误：{e}")
+#                 break
+#             except Exception as e:
+#                 print(f"\n遥操作过程中出错: {e}")
+#                 import traceback
+#                 traceback.print_exc()
+#                 time.sleep(1.0)  # 非致命错误，等待1秒继续
         
-    except KeyboardInterrupt:
-        print("\n\n程序被用户中断")
-    except serial.SerialException as e:
-        print(f"\n\n❌ 程序启动失败：PiPER_Mate USB端口连接失败！{e}")
-    except OSError as e:
-        print(f"\n\n❌ 程序启动失败：{e}")
-    except Exception as e:
-        print(f"\n程序运行出错: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        # 确保连接被正确关闭
-        if robot_controller is not None:
-            robot_controller.close()
+#     except KeyboardInterrupt:
+#         print("\n\n程序被用户中断")
+#     except serial.SerialException as e:
+#         print(f"\n\n❌ 程序启动失败：PiPER_Mate USB端口连接失败！{e}")
+#     except OSError as e:
+#         print(f"\n\n❌ 程序启动失败：{e}")
+#     except Exception as e:
+#         print(f"\n程序运行出错: {e}")
+#         import traceback
+#         traceback.print_exc()
+#     finally:
+#         # 确保连接被正确关闭
+#         if robot_controller is not None:
+#             robot_controller.close()
 
 
 if __name__ == "__main__":
-    main()
+    print("没有案例，请运行rebot_pipermate.py")
+#     main()
