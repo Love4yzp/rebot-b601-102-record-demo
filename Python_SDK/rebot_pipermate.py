@@ -44,8 +44,6 @@ def main():
     motors = [Motor1, Motor2, Motor3, Motor4, Motor5, Motor6,Motor7]
 
     for motor in motors:
-        # MotorControl1.save_motor_param(motor)
-        # time.sleep(0.001)
         MotorControl1.enable(motor)
         time.sleep(0.001)
 
@@ -103,6 +101,23 @@ def main():
                 
             except KeyboardInterrupt:
                 print("\n\n用户手动停止遥操作")
+                MotorControl1.control_Pos_Vel(Motor1,0,1.5)
+                time.sleep(0.002)
+                MotorControl1.control_Pos_Vel(Motor2,0,1.5)
+                time.sleep(0.002)
+                MotorControl1.control_Pos_Vel(Motor3,0,1.5)
+                time.sleep(0.002)
+                MotorControl1.control_Pos_Vel(Motor4,0,1.5)
+                time.sleep(0.002)
+                MotorControl1.control_Pos_Vel(Motor5,0,1.5)
+                time.sleep(0.002)
+                MotorControl1.control_Pos_Vel(Motor6,0,1.5)
+                time.sleep(8)
+                print("\n\n执行8S复位流程")
+                for motor in motors:
+                    MotorControl1.disable(motor)
+                    time.sleep(0.001)
+                print("\n\n失能完成")
                 break
             # 核心：捕获USB断开异常，立即终止程序
             except serial.SerialException as e:
