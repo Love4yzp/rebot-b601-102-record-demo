@@ -90,8 +90,7 @@ def main():
                     time.sleep(0.002)
                     MotorControl1.control_Pos_Vel(Motor6,joint_states["joint6"],15)
                     time.sleep(0.002)
-                    # MotorControl1.control_Pos_Vel(Motor7,joint_states["gripper"],15)
-                    # MotorControl1.controlMIT(Motor7, 5, 1,joint_states["gripper"],1,0)
+
                     MotorControl1.control_pos_force(Motor7,joint_states["gripper"],2000,500)#爪子 速度*100 百分比电流10000
                     time.sleep(0.002)
                     # 实时显示关节状态（每10帧显示一次，避免刷屏）
@@ -108,17 +107,17 @@ def main():
             except KeyboardInterrupt:
                 print("\n\n用户手动停止遥操作")
                 MotorControl1.disable(Motor7)
-                MotorControl1.control_Pos_Vel(Motor1,0,1.5)
+                MotorControl1.control_Pos_Vel(Motor1,0,0.4)
                 time.sleep(0.002)
-                MotorControl1.control_Pos_Vel(Motor2,0,1.5)
+                MotorControl1.control_Pos_Vel(Motor2,0,0.4)
                 time.sleep(0.002)
-                MotorControl1.control_Pos_Vel(Motor3,0,1.5)
+                MotorControl1.control_Pos_Vel(Motor3,0,0.4)
                 time.sleep(0.002)
-                MotorControl1.control_Pos_Vel(Motor4,0,1.5)
+                MotorControl1.control_Pos_Vel(Motor4,0,0.4)
                 time.sleep(0.002)
-                MotorControl1.control_Pos_Vel(Motor5,0,1.5)
+                MotorControl1.control_Pos_Vel(Motor5,0,0.4)
                 time.sleep(0.002)
-                MotorControl1.control_Pos_Vel(Motor6,0,1.5)
+                MotorControl1.control_Pos_Vel(Motor6,0,0.4)
                 print("\n\n执行8S复位流程")
                 time.sleep(8)
                 for motor in motors:
