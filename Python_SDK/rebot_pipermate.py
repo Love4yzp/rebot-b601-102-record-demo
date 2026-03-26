@@ -16,8 +16,8 @@ def main():
     """主函数 - 预设参数，持续遥操作"""
     
     # 预设参数 - 根据实际情况修改这些值
-    PIPERMATE_PORT = "/dev/ttyUSB0"    # PiPER_Mate USB端口
-    serial_device = serial.Serial('/dev/ttyACM0', 921600, timeout=0.5)
+    PIPERMATE_PORT = "COM8"    # PiPER_Mate USB端口
+    serial_device = serial.Serial('COM3', 921600, timeout=0.5)
 
 
 
@@ -78,18 +78,18 @@ def main():
                 if joint_states:
                     # 控制Piper机械臂
                     
-                    MotorControl1.control_Pos_Vel(Motor1,joint_states["joint1"],15)
+                    MotorControl1.control_Pos_Vel(Motor1,joint_states["joint1"],25)
+
+                    MotorControl1.control_Pos_Vel(Motor2,joint_states["joint2"],25)
+
+                    MotorControl1.control_Pos_Vel(Motor3,joint_states["joint3"],25)
+
+                    MotorControl1.control_Pos_Vel(Motor4,joint_states["joint4"],25)
                     time.sleep(0.002)
-                    MotorControl1.control_Pos_Vel(Motor2,joint_states["joint2"],15)
-                    time.sleep(0.002)
-                    MotorControl1.control_Pos_Vel(Motor3,joint_states["joint3"],15)
-                    time.sleep(0.002)
-                    MotorControl1.control_Pos_Vel(Motor4,joint_states["joint4"],15)
-                    time.sleep(0.002)
-                    MotorControl1.control_Pos_Vel(Motor5,joint_states["joint5"],15)
-                    time.sleep(0.002)
-                    MotorControl1.control_Pos_Vel(Motor6,joint_states["joint6"],15)
-                    time.sleep(0.002)
+                    MotorControl1.control_Pos_Vel(Motor5,joint_states["joint5"],25)
+
+                    MotorControl1.control_Pos_Vel(Motor6,joint_states["joint6"],25)
+
 
                     MotorControl1.control_pos_force(Motor7,joint_states["gripper"],2000,500)#爪子 速度*100 百分比电流10000
                     time.sleep(0.002)
@@ -106,24 +106,24 @@ def main():
                 
             except KeyboardInterrupt:
                 print("\n\n用户手动停止遥操作")
-                MotorControl1.disable(Motor7)
-                MotorControl1.control_Pos_Vel(Motor1,0,0.4)
-                time.sleep(0.002)
-                MotorControl1.control_Pos_Vel(Motor2,0,0.4)
-                time.sleep(0.002)
-                MotorControl1.control_Pos_Vel(Motor3,0,0.4)
-                time.sleep(0.002)
-                MotorControl1.control_Pos_Vel(Motor4,0,0.4)
-                time.sleep(0.002)
-                MotorControl1.control_Pos_Vel(Motor5,0,0.4)
-                time.sleep(0.002)
-                MotorControl1.control_Pos_Vel(Motor6,0,0.4)
-                print("\n\n执行8S复位流程")
-                time.sleep(8)
-                for motor in motors:
-                    MotorControl1.disable(motor)
-                    time.sleep(0.001)
-                print("\n\n失能完成")
+                # MotorControl1.disable(Motor7)
+                # MotorControl1.control_Pos_Vel(Motor1,0,0.4)
+                # time.sleep(0.002)
+                # MotorControl1.control_Pos_Vel(Motor2,0,0.4)
+                # time.sleep(0.002)
+                # MotorControl1.control_Pos_Vel(Motor3,0,0.4)
+                # time.sleep(0.002)
+                # MotorControl1.control_Pos_Vel(Motor4,0,0.4)
+                # time.sleep(0.002)
+                # MotorControl1.control_Pos_Vel(Motor5,0,0.4)
+                # time.sleep(0.002)
+                # MotorControl1.control_Pos_Vel(Motor6,0,0.4)
+                # print("\n\n执行8S复位流程")
+                # time.sleep(8)
+                # for motor in motors:
+                #     MotorControl1.disable(motor)
+                #     time.sleep(0.001)
+                # print("\n\n失能完成")
                 break
             # 核心：捕获USB断开异常，立即终止程序
             except serial.SerialException as e:
