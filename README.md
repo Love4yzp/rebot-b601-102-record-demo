@@ -31,7 +31,7 @@ Python SDK
 # 1. 安装依赖
 #达秒电机库相关依赖是serial , numpy 这几个库，记得安装相关依赖。
 sudo apt update
-pip install pyserial fashionstar-uart-sdk scipy numpy 
+pip install pyserial fashionstar-uart-sdk scipy numpy pynput
 
 
 # 2. 运行程序
