@@ -52,8 +52,15 @@ class SlaveArm:
         self.motors = [Motor1, Motor2, Motor3, Motor4, Motor5, Motor6, Motor7]
 
         for motor in self.motors:
+            self.motor_control.disable(motor)
+            if motor != Motor7:
+                self.motor_control.switchControlMode(motor, Control_Type.POS_VEL)
+            else:
+                self.motor_control.switchControlMode(motor, Control_Type.Torque_Pos)
             self.motor_control.enable(motor)
-            time.sleep(0.05)
+            time.sleep(0.001)
+
+
 
         print(f"[系统] {self.name} 初始化完成: {self.port}")
 
@@ -144,10 +151,9 @@ class TeleopLooper:
         # =========================
         # 预设参数
         # =========================
-        self.PIPERMATE_PORT = "COM12"
+        self.PIPERMATE_PORT = "/dev/ttyUSB0"
         self.SLAVE_PORTS = [
-            "COM3",
-            #"/dev/ttyACM1",
+            "/dev/ttyACM0",
         ]
         self.BAUDRATE = 921600
         self.GRIPPER_EXIST = True
