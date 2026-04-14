@@ -1,4 +1,4 @@
-# PiPER-Mate
+# rebot b601-DM & rebot 102 demo
 
 ---
 
