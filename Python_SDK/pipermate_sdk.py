@@ -39,10 +39,11 @@ class PiPER_MateAgilex:
     
 
     
-    def __init__(self, 
-                 fashionstar_port: str = "/dev/ttyUSB0", 
+    def __init__(self,
+                 fashionstar_port: str = "/dev/ttyUSB0",
                  piper_can_name: str = "can0",
-                 gripper_exist: bool = True):
+                 gripper_exist: bool = True,
+                 fashionstar_baud: int = 115200):
         """
         初始化PiPER Mate和rebot机械臂
         
@@ -56,7 +57,7 @@ class PiPER_MateAgilex:
         # 初始化PiPER_Mate机械臂
         print(f"初始化PiPER_Mate机械臂，端口: {fashionstar_port}")
         try:
-            self.fashionstar_handler = starai_PortHandler(fashionstar_port, 1000000)
+            self.fashionstar_handler = starai_PortHandler(fashionstar_port, fashionstar_baud)
             self.fashionstar_handler.openPort()
             print("PiPER_Mate机械臂连接成功")
         except Exception as e:
