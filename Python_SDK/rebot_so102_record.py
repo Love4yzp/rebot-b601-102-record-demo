@@ -1,6 +1,7 @@
 from pipermate_sdk import PiPER_MateAgilex
 import time
 import sys
+import json
 import select
 import termios
 import tty
@@ -8,7 +9,10 @@ import serial
 import serial.tools.list_ports
 import threading
 from copy import deepcopy
+from pathlib import Path
 from u2can.DM_CAN import *
+
+RECORDINGS_DIR = Path(__file__).resolve().parent.parent / "recordings"
 
 from fashionstar_uart_sdk.uart_pocket_handler import (
     PortHandler as starai_PortHandler,
@@ -384,6 +388,49 @@ class TeleopLooper:
         self.transition_target_slot = None
 
     # =========================================================
+    # 槽位持久化（JSON，录完即存，启动即载，清空即删）
+    # =========================================================
+    def _slot_path(self, idx):
+        return RECORDINGS_DIR / f"slot_{idx+1}.json"
+
+    def _save_slot(self, idx):
+        try:
+            RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
+            path = self._slot_path(idx)
+            payload = {"slot": idx, "frames": self.motion_slots[idx]}
+            tmp = path.with_suffix(".json.tmp")
+            with open(tmp, "w") as f:
+                json.dump(payload, f)
+            tmp.replace(path)
+            print(f"\r\n[持久化] 槽 {idx + 1} 已保存 → {path}")
+        except Exception as e:
+            print(f"\r\n[持久化] 槽 {idx + 1} 保存失败: {e}")
+
+    def _delete_slot_file(self, idx):
+        try:
+            path = self._slot_path(idx)
+            if path.exists():
+                path.unlink()
+                print(f"\r\n[持久化] 槽 {idx + 1} 文件已删除")
+        except Exception as e:
+            print(f"\r\n[持久化] 删除槽 {idx + 1} 文件失败: {e}")
+
+    def _load_all_slots(self):
+        if not RECORDINGS_DIR.exists():
+            return
+        for idx in range(self.NUM_SLOTS):
+            path = self._slot_path(idx)
+            if not path.exists():
+                continue
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                self.motion_slots[idx] = data.get("frames", [])
+                print(f"[持久化] 已加载槽 {idx + 1}: {len(self.motion_slots[idx])} 帧")
+            except Exception as e:
+                print(f"[持久化] 加载槽 {idx + 1} 失败: {e}")
+
+    # =========================================================
     # 录制 / 播放 控制
     # =========================================================
     def start_record(self, slot_idx):
@@ -438,6 +485,7 @@ class TeleopLooper:
                 self.motion_slots[slot_idx].append(loop_back_frame)
 
         frame_num = len(self.motion_slots[slot_idx]) if slot_idx is not None else 0
+        saved_slot_idx = slot_idx
         self.current_record_slot = None
         self.record_start_time = None
         self.last_recorded_time = None
@@ -445,6 +493,9 @@ class TeleopLooper:
         self.mode = "follow"
 
         print(f"\n[录制] 停止录制槽位 {slot_idx + 1 if slot_idx is not None else '?'}，共记录 {frame_num} 帧")
+
+        if saved_slot_idx is not None and frame_num > 0:
+            self._save_slot(saved_slot_idx)
 
     def start_playback(self, slot_idx):
         with self.lock:
@@ -536,6 +587,7 @@ class TeleopLooper:
 
             self.motion_slots[slot_idx] = []
             print(f"\n[清空] 已清空槽位 {slot_idx + 1}")
+            self._delete_slot_file(slot_idx)
 
     def clear_last_slot(self):
         with self.lock:
@@ -559,6 +611,9 @@ class TeleopLooper:
                 self.motion_slots[i] = []
 
             print("\n[清空] 已清空所有动作槽位")
+
+            for i in range(self.NUM_SLOTS):
+                self._delete_slot_file(i)
 
     # =========================================================
     # 录制 / 播放 / 过渡 更新
@@ -772,6 +827,7 @@ class TeleopLooper:
     def run(self):
         self.setup_slaves()
         self.setup_master_arm()
+        self._load_all_slots()
 
         kb_thread = threading.Thread(target=self.keyboard_listener_thread, daemon=True)
         kb_thread.start()
