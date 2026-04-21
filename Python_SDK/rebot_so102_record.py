@@ -1,9 +1,13 @@
 from pipermate_sdk import PiPER_MateAgilex
 import time
+import sys
+import select
+import termios
+import tty
 import serial
+import serial.tools.list_ports
 import threading
 from copy import deepcopy
-from pynput import keyboard
 from u2can.DM_CAN import *
 
 from fashionstar_uart_sdk.uart_pocket_handler import (
@@ -146,15 +150,71 @@ class SlaveArm:
             print(f"[清理] {self.name} 关闭失败: {e}")
 
 
+def detect_rebot_ports(preferred_master=None, preferred_slave=None):
+    """
+    启动时自动识别 rebot 主从臂串口。
+      - 主臂 B601-DM: CH340 (VID=0x1a86) 的 'USB Serial'，排除 Reachy Mini 的 'USB Single Serial'
+      - 从臂 SO102:   HDSC CDC_Device（manufacturer == 'HDSC'）
+    无歧义自动选择；有歧义或未找到时提示人工选择/报错。
+    """
+    ports = list(serial.tools.list_ports.comports())
+
+    def fmt(p):
+        vid = f"{p.vid:04x}" if p.vid else "----"
+        pid = f"{p.pid:04x}" if p.pid else "----"
+        return (f"{p.device:<18} {vid}:{pid}  mfr={p.manufacturer!r}  "
+                f"product={p.product!r}  serial={p.serial_number!r}")
+
+    print("[端口检测] 枚举到的串口设备：")
+    for p in ports:
+        print(f"  - {fmt(p)}")
+
+    master_candidates = [
+        p for p in ports
+        if p.vid == 0x1a86 and p.product and "Single" not in p.product
+    ]
+    slave_candidates = [
+        p for p in ports
+        if (p.manufacturer or "").upper() == "HDSC"
+        or (p.product or "").upper().startswith("CDC")
+    ]
+
+    def pick(label, cands, preferred):
+        if preferred:
+            found = [c for c in cands if c.device == preferred]
+            if found:
+                print(f"[端口检测] {label}: 使用指定 {preferred}")
+                return found[0].device
+            print(f"[端口检测] 警告：指定的 {preferred} 不在候选中，退回自动识别")
+        if len(cands) == 1:
+            c = cands[0]
+            print(f"[端口检测] {label}: 自动选中 {c.device}  ({c.product})")
+            return c.device
+        if len(cands) == 0:
+            raise SystemExit(f"[端口检测] 未找到 {label}，请检查 USB 连接")
+        print(f"[端口检测] {label} 有多个候选：")
+        for i, c in enumerate(cands):
+            print(f"  [{i}] {fmt(c)}")
+        while True:
+            try:
+                idx = int(input(f"请输入 {label} 的编号 [0-{len(cands)-1}]: ").strip())
+                if 0 <= idx < len(cands):
+                    return cands[idx].device
+            except (ValueError, EOFError, KeyboardInterrupt):
+                raise SystemExit(f"[端口检测] {label} 选择被取消")
+
+    master = pick("主臂 (B601-DM / CH340)", master_candidates, preferred_master)
+    slave = pick("从臂 (SO102 / HDSC CDC)", slave_candidates, preferred_slave)
+    return master, slave
+
+
 class TeleopLooper:
-    def __init__(self):
+    def __init__(self, master_port=None, slave_ports=None):
         # =========================
         # 预设参数
         # =========================
-        self.PIPERMATE_PORT = "/dev/ttyUSB0"
-        self.SLAVE_PORTS = [
-            "/dev/ttyACM0",
-        ]
+        self.PIPERMATE_PORT = master_port or "/dev/ttyUSB0"
+        self.SLAVE_PORTS = list(slave_ports) if slave_ports else ["/dev/ttyACM0"]
         self.BAUDRATE = 921600
         self.GRIPPER_EXIST = True
         self.UPDATE_RATE = 30
@@ -612,28 +672,22 @@ class TeleopLooper:
             return self.interpolate_joint_states(frame_a, frame_b, elapsed)
 
     # =========================================================
-    # 键盘监听
+    # 键盘监听（termios cbreak + select，SSH/headless 可用，无需 X11）
     # =========================================================
-    def on_press(self, key):
+    def _handle_key(self, ch):
         try:
-            if key == keyboard.Key.esc:
-                print("\n[系统] 收到退出指令")
+            if ch == "\x1b":
+                print("\r\n[系统] 收到退出指令")
                 self.running = False
-                return False
-
-            if not hasattr(key, "char") or key.char is None:
                 return
 
-            ch = key.char.lower()
+            ch = ch.lower()
 
             if ch in self.record_keys:
                 slot_idx = self.record_keys[ch]
                 with self.lock:
-                    if self.mode == "record" and self.current_record_slot == slot_idx:
-                        need_stop = True
-                    else:
-                        need_stop = False
-
+                    need_stop = (self.mode == "record"
+                                 and self.current_record_slot == slot_idx)
                 if need_stop:
                     self.stop_record()
                 else:
@@ -641,8 +695,7 @@ class TeleopLooper:
                 return
 
             if ch in self.play_keys:
-                slot_idx = self.play_keys[ch]
-                self.start_transition_to_slot(slot_idx)
+                self.start_transition_to_slot(self.play_keys[ch])
                 return
 
             if ch == "s":
@@ -666,11 +719,11 @@ class TeleopLooper:
                     elif self.mode == "transition":
                         self.stop_transition_locked()
                     self.mode = "follow"
-                print("\n[模式] 切换到跟随模式")
+                print("\r\n[模式] 切换到跟随模式")
                 return
 
         except Exception as e:
-            print(f"\n[键盘监听异常] {e}")
+            print(f"\r\n[键盘监听异常] {e}")
 
     def keyboard_listener_thread(self):
         print("\n================ 键位说明 ================")
@@ -680,11 +733,39 @@ class TeleopLooper:
         print("清空最近操作槽: c")
         print("清空全部槽位: a")
         print("切回纯跟随模式: f")
-        print("退出程序: Esc")
+        print("退出程序: Esc 或 Ctrl+C")
         print("=========================================\n")
 
-        with keyboard.Listener(on_press=self.on_press) as listener:
-            listener.join()
+        if not sys.stdin.isatty():
+            print("[键盘] stdin 不是 tty，键盘监听已禁用；仅能通过 Ctrl+C 退出")
+            return
+
+        fd = sys.stdin.fileno()
+        try:
+            old = termios.tcgetattr(fd)
+        except termios.error as e:
+            print(f"[键盘] 无法读取 termios 状态，键盘监听已禁用: {e}")
+            return
+
+        try:
+            # cbreak: 关闭 ICANON/ECHO，但保留 ISIG —— Ctrl+C 仍然能打断主循环
+            tty.setcbreak(fd, termios.TCSADRAIN)
+            while self.running:
+                r, _, _ = select.select([fd], [], [], 0.1)
+                if not r:
+                    continue
+                ch = sys.stdin.read(1)
+                if not ch:
+                    continue
+                # 识别 Esc：如果紧跟还有字符（方向键/功能键前缀 \x1b[...），吞掉不处理
+                if ch == "\x1b":
+                    r2, _, _ = select.select([fd], [], [], 0.05)
+                    if r2:
+                        sys.stdin.read(8)  # 丢弃后续转义序列
+                        continue
+                self._handle_key(ch)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
     # =========================================================
     # 主循环
@@ -794,7 +875,8 @@ class TeleopLooper:
 
 
 def main():
-    controller = TeleopLooper()
+    master_port, slave_port = detect_rebot_ports()
+    controller = TeleopLooper(master_port=master_port, slave_ports=[slave_port])
     controller.run()
 
 
