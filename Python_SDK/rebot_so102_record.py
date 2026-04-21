@@ -169,10 +169,9 @@ def detect_rebot_ports(preferred_master=None, preferred_slave=None):
     for p in ports:
         print(f"  - {fmt(p)}")
 
-    master_candidates = [
-        p for p in ports
-        if p.vid == 0x1a86 and p.product and "Single" not in p.product
-    ]
+    # 主臂 B601-DM 走 CH340/CH341 经典 USB 转串口芯片（PID 0x7523）。
+    # R2x 板载还有 WCH Quad Serial (PID 0x55d5) 和 Single Serial (PID 0x55d3)，需排除。
+    master_candidates = [p for p in ports if p.vid == 0x1a86 and p.pid == 0x7523]
     slave_candidates = [
         p for p in ports
         if (p.manufacturer or "").upper() == "HDSC"
