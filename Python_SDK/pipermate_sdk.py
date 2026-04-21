@@ -24,7 +24,7 @@ JOINT_ANGLE_LIMITS = {
     'joint4': [-80.0,80.0],      #<--- 这个关节的0.0限位改大即可低头
     'joint5': [-70.0, 70.0],        
     'joint6': [-120.0, 120.0],   
-    'gripper':[-320, 0],
+    'gripper':[0, 320],
 }
 
 # 夹爪放缩比，rebot的夹爪会等比放大对应行程 须 >0 
@@ -136,10 +136,10 @@ class PiPER_MateAgilex:
             # 转换为弧度
             return self.degrees_to_radians(limited_angle)
         elif servo_id == 6:
-            #对角度取反
-            servo_angle = -servo_angle*GRIPPER_RATIO
-            if servo_angle > -14:
-                servo_angle = 0 
+            # 从臂 motor7 的 0 rad = 物理闭合位置 → 张开方向为正
+            servo_angle = servo_angle * GRIPPER_RATIO
+            if servo_angle < 14:
+                servo_angle = 0
             
             # 根据关节名称获取角度限制
             joint_name = f'gripper'
