@@ -86,12 +86,11 @@ class SlaveArm:
         self.motor_control.control_Pos_Vel(self.motors[5], joint_states["joint6"], 15)
         time.sleep(0.0005)
 
-        # i_des=3000 ≈ 30% 最大电流；原值 350 (3.5%) 扭矩不足无法驱动夹爪机构
         self.motor_control.control_pos_force(
             self.motors[6],
             joint_states["gripper"],
             2000,
-            3000
+            350
         )
 
     def safe_shutdown(self, duration=2.0, steps=20):
