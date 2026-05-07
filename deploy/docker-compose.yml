@@ -1,0 +1,41 @@
+# Run from the repo root:
+#   docker compose -f deploy/docker-compose.yml up -d
+#
+# Before first deploy, verify char device majors on the host:
+#   ls -l /dev/ttyUSB0 /dev/ttyACM0
+# CH340 master typically major 188, HDSC CDC slave typically major 166.
+# If your host differs, edit `device_cgroup_rules` below.
+
+name: rebot-record
+
+services:
+  rebot-record:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: rebot-record:latest
+    container_name: rebot-record
+    restart: unless-stopped
+    stop_grace_period: 30s
+    ports:
+      - "18790:8000"
+    environment:
+      PYTHONUNBUFFERED: "1"
+      # Optional explicit ports — leave unset for auto-detect by VID/PID.
+      # MASTER_PORT: /dev/ttyUSB0
+      # SLAVE_PORT: /dev/ttyACM0
+      REBOT_RETURN_TIME: "2.0"
+      REBOT_TRANSITION_TIME: "0.6"
+    volumes:
+      - /dev:/dev
+      - ../recordings:/app/recordings
+      - ../frontend/dist:/app/frontend/dist:ro
+      # Hot-mount backend source so `./car rebot-record sync` picks up changes
+      # without rebuilding the image. uv installs the project editable, so
+      # imports resolve through this mount.
+      - ../backend:/app/backend:ro
+    device_cgroup_rules:
+      # CH340 USB→serial (B601-DM master) — char major 188
+      - "c 188:* rmw"
+      # USB CDC ACM (HDSC SO102 slave) — char major 166
+      - "c 166:* rmw"

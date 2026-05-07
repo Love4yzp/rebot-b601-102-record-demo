@@ -1,7 +1,18 @@
 rebot/
 
-# Python bytecode
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.venv/
+
+# Node / Vite
+node_modules/
+frontend/dist/
+
+# Local recordings (deployment artifact, not source)
+recordings/
+
+# Parent project integration (chaihuo-car specific)
+manage.sh
