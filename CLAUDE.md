@@ -98,6 +98,5 @@ All optional. Full list in `backend/config.py`. Most-used:
 
 - **Container char-major rules**: `deploy/docker-compose.yml` pins `device_cgroup_rules` to char major **188 (CH340)** and **166 (CDC ACM)**. If the host kernel uses different majors, `Permission denied: /dev/ttyXXX` even though the bind-mount is fine. Check with `ls -l /dev/ttyUSB0 /dev/ttyACM0` before deploying to a new box.
 - **`/dev` bind-mount**: docker-compose binds `/dev:/dev` so USB hot-replug is visible to the container without a restart. Don't replace this with named devices unless you also accept a container restart on every replug.
-- **README claims DaisyUI**: stale — frontend has been migrated to plain tailwind utilities + custom CSS tokens. If you touch the README, sync that section.
 - **Frontend dist served by FastAPI**: the static mount is added **last** in `build_app()` so `/api/*` and `/ws` win. Don't mount additional paths under `/`.
 - **Recording filter**: `_changed_enough` + `_filter` smooth & deduplicate frames. A motionless arm + small `min_joint_change_rad` produces a 2-frame action (the initial pose + end-hold pad) — not a bug, but watch for it when smoke-testing in mock mode (the synthetic sine is slow).
