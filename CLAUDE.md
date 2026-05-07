@@ -6,9 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Standalone teleop / record / playback service for **B601-DM master arm → SO102 slave arm**: 30Hz follow + named action library + loop/once playback with smooth transitions back to live master. Single-process FastAPI app; React SPA served from `/`; one WS topic `/ws` carrying state snapshots.
 
-This is its own GitHub repo (`Love4yzp/rebot-b601-102-record-demo`); it lives under `chaihuo-car/services/` and is wired into the parent `./car` CLI as `rebot-record`.
-
-## Common commands
+## Dev commands
 
 ```bash
 # Backend dev (macOS / no hardware) — synthesizes joint data
@@ -22,30 +20,7 @@ cd frontend && npm install && npm run dev      # opens :5173
 
 # Frontend production build (consumed by FastAPI's StaticFiles mount)
 cd frontend && npm run build                   # tsc -b && vite build → frontend/dist
-
-# Deploy to r2x (from chaihuo-car/ root)
-# First deploy: builds image locally (arm64), pipes to r2x via docker save|load, starts container
-./car rebot-record deploy
-
-# Quick sync: rsync code only + docker restart — no rebuild, use after Python/config changes
-./car rebot-record sync
-
-# Other ops
-./car rebot-record logs      # tail container logs
-./car rebot-record health    # curl /api/health on r2x
-./car rebot-record down      # stop container
-./car rebot-record destroy   # stop + delete /opt/rebot-record on r2x
-
-# Web UI: http://172.16.0.3:18790 (or SSH tunnel: ./car ssh r2x -L 18790:127.0.0.1:18790 -N)
 ```
-
-### Deploy notes
-
-- **Image is built locally** (macOS arm64 = r2x aarch64) and transferred via `docker save | gzip | ssh | docker load`. r2x cannot pull from Docker Hub directly.
-- **`sync` vs `deploy`**: use `sync` for any code change — Python, frontend src, config (~20s: local `npm run build` + rsync + restart). Use `deploy` only when `Dockerfile`, `pyproject.toml`, or `uv.lock` changes (slow, ~2min local build + image transfer).
-- **frontend/dist** is volume-mounted (`../frontend/dist:/app/frontend/dist:ro`), so `sync` rsync's the built dist directly into the running container path — no image rebuild needed.
-- **Port**: container exposes `18790:8000`. xiaozhi occupies `8000` on r2x.
-- **recordings** volume: mounted at `../recordings` relative to `REMOTE_DIR` (`/opt/rebot-record/recordings`).
 
 There is **no test suite** and no linter wired up. `tsc -b` runs as part of `npm run build`. Python uses 3.12 (`.python-version`).
 
