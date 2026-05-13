@@ -18,12 +18,12 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
     ports:
-      - "18790:8000"
+      - "1882:8000"
     environment:
       PYTHONUNBUFFERED: "1"
-      # Optional explicit ports — leave unset for auto-detect by VID/PID.
-      # MASTER_PORT: /dev/ttyUSB0
-      # SLAVE_PORT: /dev/ttyACM0
+      # Stable udev symlinks (99-rebot-arms.rules on reDM) — survive replug/renumber
+      MASTER_PORT: /dev/rebot-master
+      SLAVE_PORT: /dev/rebot-slave
       REBOT_RETURN_TIME: "2.0"
       REBOT_TRANSITION_TIME: "0.6"
     volumes:
@@ -37,5 +37,7 @@ services:
     device_cgroup_rules:
       # CH340 USB→serial (B601-DM master) — char major 188
       - "c 188:* rmw"
-      # USB CDC ACM (HDSC SO102 slave) — char major 166
+      # USB CDC ACM (HDSC SO102 slave on r2x) — char major 166
       - "c 166:* rmw"
+      # usb_ch343 (SO102 on ReTerminal DM, ttyCH343USB*) — char major 170
+      - "c 170:* rmw"
